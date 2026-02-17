@@ -21,11 +21,50 @@ workflows:
       - name: Flutter pub get
         script: flutter pub get
 
+      - name: Install CocoaPods
+        script: |
+          cd ios
+          pod install
+          cd ..
+
       - name: Set up code signing
         script: xcode-project use-profiles
 
-      - name: Build IPA (release)
-        script: flutter build ipa --release
+      - name: Archive (explicit scheme)
+        script: |
+          mkdir -p build/ios/archive
+          xcodebuild \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath build/ios/archive/WhiteSailsRemote.xcarchive \
+            archive \
+            DEVELOPMENT_TEAM="" \
+            CODE_SIGN_STYLE=Automatic
+
+      - name: Export IPA
+        script: |
+          mkdir -p build/ios/ipa
+          xcodebuild -exportArchive \
+            -archivePath build/ios/archive/WhiteSailsRemote.xcarchive \
+            -exportPath build/ios/ipa \
+            -exportOptionsPlist /Users/builder/export_options.plist
+
+      - name: Create export options plist
+        script: |
+          cat > /Users/builder/export_options.plist <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>stripSwiftSymbols</key><true/>
+            <key>uploadBitcode</key><false/>
+          </dict>
+          </plist>
+          EOF
 
     artifacts:
       - build/ios/ipa/*.ipa
