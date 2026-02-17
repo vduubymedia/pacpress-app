@@ -7,12 +7,15 @@ workflows:
     integrations:
       app_store_connect: Codemagic
 
-    environment:
-      flutter: stable
-      xcode: latest
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.whitesails.remote
+   environment:
+  flutter: stable
+  xcode: latest
+  ios_signing:
+    distribution_type: app_store
+    bundle_identifier: com.whitesails.remote
+    provisioning_profiles:
+      - ws_appstore_profile
+
 
     scripts:
       - name: Flutter pub get
