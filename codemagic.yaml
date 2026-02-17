@@ -15,7 +15,7 @@ workflows:
         provisioning_profiles:
           - ws_appstore_profile
         certificates:
-          - ws_dist_cert
+          - Apple Distribution
 
     scripts:
       - name: Flutter pub get
