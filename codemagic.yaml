@@ -12,10 +12,10 @@ workflows:
       xcode: latest
 
       ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.whitesails.remote
         provisioning_profiles:
           - ws_appstore_profile
+        certificates:
+          - ws_dist_cert
 
     scripts:
       - name: Flutter pub get
