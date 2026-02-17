@@ -10,15 +10,17 @@ workflows:
     environment:
       flutter: stable
       xcode: latest
+
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.whitesails.remote
+        provisioning_profiles:
+          - ws_appstore_profile
 
     scripts:
       - name: Flutter pub get
         script: flutter pub get
 
-      # Applies the provisioning profiles/certificates you've stored in Codemagic
       - name: Set up code signing
         script: xcode-project use-profiles
 
