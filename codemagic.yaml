@@ -21,17 +21,6 @@ workflows:
       - name: Flutter pub get
         script: flutter pub get
 
-      - name: Verify iOS folder + files
-        script: |
-          echo "Repo root:"
-          pwd
-          echo "Listing root:"
-          ls -la
-          echo "Listing ios/:"
-          ls -la ios || true
-          echo "Listing ios/Runner.xcodeproj:"
-          ls -la ios/Runner.xcodeproj || true
-
       - name: Generate iOS build files (safe)
         script: |
           flutter clean
@@ -43,42 +32,13 @@ workflows:
           cd ios
           pod repo update
           pod install
-          ls -la
           cd ..
 
-      - name: Set up code signing
-        script: xcode-project use-profiles
+      # IMPORTANT: apply profiles to the actual app project explicitly
+      - name: Set up code signing (target Runner project)
+        script: xcode-project use-profiles --project ios/Runner.xcodeproj
 
-      - name: Archive (explicit team id)
-        script: |
-          TEAM_ID="L52QSD32SX"
-          mkdir -p build/ios/archive
-
-          if [ -d "ios/Runner.xcworkspace" ]; then
-            echo "✅ Using workspace ios/Runner.xcworkspace"
-            xcodebuild \
-              -workspace ios/Runner.xcworkspace \
-              -scheme Runner \
-              -configuration Release \
-              -sdk iphoneos \
-              -archivePath build/ios/archive/WhiteSailsRemote.xcarchive \
-              archive \
-              DEVELOPMENT_TEAM=$TEAM_ID \
-              CODE_SIGN_STYLE=Automatic
-          else
-            echo "⚠️ Workspace missing, using project ios/Runner.xcodeproj"
-            xcodebuild \
-              -project ios/Runner.xcodeproj \
-              -scheme Runner \
-              -configuration Release \
-              -sdk iphoneos \
-              -archivePath build/ios/archive/WhiteSailsRemote.xcarchive \
-              archive \
-              DEVELOPMENT_TEAM=$TEAM_ID \
-              CODE_SIGN_STYLE=Automatic
-          fi
-
-      - name: Create export options plist
+      - name: Create export options plist (includes teamID)
         script: |
           cat > /Users/builder/export_options.plist <<'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
@@ -87,22 +47,24 @@ workflows:
           <dict>
             <key>method</key><string>app-store-connect</string>
             <key>signingStyle</key><string>automatic</string>
+            <key>teamID</key><string>L52QSD32SX</string>
             <key>stripSwiftSymbols</key><true/>
             <key>uploadBitcode</key><false/>
           </dict>
           </plist>
           EOF
 
-      - name: Export IPA
+      # Use Codemagic CLI to build IPA (more reliable than manual xcodebuild archive/export in CI)
+      - name: Build IPA (Codemagic build-ipa)
         script: |
           mkdir -p build/ios/ipa
-          xcodebuild -exportArchive \
-            -archivePath build/ios/archive/WhiteSailsRemote.xcarchive \
-            -exportPath build/ios/ipa \
-            -exportOptionsPlist /Users/builder/export_options.plist
+          xcode-project build-ipa \
+            --project ios/Runner.xcodeproj \
+            --scheme Runner \
+            --export-options-plist /Users/builder/export_options.plist
 
     artifacts:
-      - build/ios/ipa/*.ipa
+      - "**/*.ipa"
 
     publishing:
       app_store_connect:
