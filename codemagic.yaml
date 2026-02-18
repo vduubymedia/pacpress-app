@@ -37,22 +37,11 @@ workflows:
       - name: Set up code signing (target Runner project)
         script: xcode-project use-profiles --project ios/Runner.xcodeproj
 
-      - name: Create export options plist (PlistBuddy)
-        script: |
-          /usr/libexec/PlistBuddy -c "Clear dict" /Users/builder/export_options.plist 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Add :method string app-store-connect" /Users/builder/export_options.plist
-          /usr/libexec/PlistBuddy -c "Add :signingStyle string automatic" /Users/builder/export_options.plist
-          /usr/libexec/PlistBuddy -c "Add :teamID string L52QSD32SX" /Users/builder/export_options.plist
-          /usr/libexec/PlistBuddy -c "Add :stripSwiftSymbols bool true" /Users/builder/export_options.plist
-          /usr/libexec/PlistBuddy -c "Add :uploadBitcode bool false" /Users/builder/export_options.plist
-          /usr/libexec/PlistBuddy -c "Print" /Users/builder/export_options.plist
-
-      - name: Build IPA (Codemagic build-ipa)
+      - name: Build IPA (Codemagic build-ipa, no plist)
         script: |
           xcode-project build-ipa \
             --project ios/Runner.xcodeproj \
-            --scheme Runner \
-            --export-options-plist /Users/builder/export_options.plist
+            --scheme Runner
 
     artifacts:
       - "**/*.ipa"
