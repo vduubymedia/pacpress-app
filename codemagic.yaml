@@ -34,30 +34,21 @@ workflows:
           pod install
           cd ..
 
-      # IMPORTANT: apply profiles to the actual app project explicitly
       - name: Set up code signing (target Runner project)
         script: xcode-project use-profiles --project ios/Runner.xcodeproj
 
-      - name: Create export options plist (includes teamID)
+      - name: Create export options plist (PlistBuddy)
         script: |
-          cat > /Users/builder/export_options.plist <<'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key><string>app-store-connect</string>
-            <key>signingStyle</key><string>automatic</string>
-            <key>teamID</key><string>L52QSD32SX</string>
-            <key>stripSwiftSymbols</key><true/>
-            <key>uploadBitcode</key><false/>
-          </dict>
-          </plist>
-          EOF
+          /usr/libexec/PlistBuddy -c "Clear dict" /Users/builder/export_options.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :method string app-store-connect" /Users/builder/export_options.plist
+          /usr/libexec/PlistBuddy -c "Add :signingStyle string automatic" /Users/builder/export_options.plist
+          /usr/libexec/PlistBuddy -c "Add :teamID string L52QSD32SX" /Users/builder/export_options.plist
+          /usr/libexec/PlistBuddy -c "Add :stripSwiftSymbols bool true" /Users/builder/export_options.plist
+          /usr/libexec/PlistBuddy -c "Add :uploadBitcode bool false" /Users/builder/export_options.plist
+          /usr/libexec/PlistBuddy -c "Print" /Users/builder/export_options.plist
 
-      # Use Codemagic CLI to build IPA (more reliable than manual xcodebuild archive/export in CI)
       - name: Build IPA (Codemagic build-ipa)
         script: |
-          mkdir -p build/ios/ipa
           xcode-project build-ipa \
             --project ios/Runner.xcodeproj \
             --scheme Runner \
