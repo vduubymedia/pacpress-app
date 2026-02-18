@@ -12,19 +12,50 @@ workflows:
       xcode: latest
 
       ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.whitesails.remote
+        provisioning_profiles:
+          - WhiteSails Remote app store
+        certificates:
+          - Apple Distribution
 
     scripts:
       - name: Flutter pub get
         script: flutter pub get
 
-      - name: Build IPA (Codemagic native)
+      - name: Generate iOS build files (safe)
         script: |
-          flutter build ipa --release
+          flutter clean
+          flutter pub get
+          flutter build ios --release --no-codesign
+
+      - name: Install CocoaPods (generate workspace)
+        script: |
+          cd ios
+          pod repo update
+          pod install
+          cd ..
+
+      - name: Set up code signing (target Runner project)
+        script: xcode-project use-profiles --project ios/Runner.xcodeproj
+
+      - name: Create export options plist (PlistBuddy)
+        script: |
+          /usr/libexec/PlistBuddy -c "Clear dict" /Users/builder/export_options.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :method string app-store-connect" /Users/builder/export_options.plist
+          /usr/libexec/PlistBuddy -c "Add :signingStyle string automatic" /Users/builder/export_options.plist
+          /usr/libexec/PlistBuddy -c "Add :teamID string L52QSD32SX" /Users/builder/export_options.plist
+          /usr/libexec/PlistBuddy -c "Add :stripSwiftSymbols bool true" /Users/builder/export_options.plist
+          /usr/libexec/PlistBuddy -c "Add :uploadBitcode bool false" /Users/builder/export_options.plist
+          /usr/libexec/PlistBuddy -c "Print" /Users/builder/export_options.plist
+
+      - name: Build IPA (Codemagic build-ipa)
+        script: |
+          xcode-project build-ipa \
+            --project ios/Runner.xcodeproj \
+            --scheme Runner \
+            --export-options-plist /Users/builder/export_options.plist
 
     artifacts:
-      - build/ios/ipa/*.ipa
+      - "**/*.ipa"
 
     publishing:
       app_store_connect:
