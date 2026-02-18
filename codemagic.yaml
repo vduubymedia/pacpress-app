@@ -49,8 +49,9 @@ workflows:
       - name: Set up code signing
         script: xcode-project use-profiles
 
-      - name: Archive (workspace if exists, else project)
+      - name: Archive (explicit team id)
         script: |
+          TEAM_ID="L52QSD32SX"
           mkdir -p build/ios/archive
 
           if [ -d "ios/Runner.xcworkspace" ]; then
@@ -62,6 +63,7 @@ workflows:
               -sdk iphoneos \
               -archivePath build/ios/archive/WhiteSailsRemote.xcarchive \
               archive \
+              DEVELOPMENT_TEAM=$TEAM_ID \
               CODE_SIGN_STYLE=Automatic
           else
             echo "⚠️ Workspace missing, using project ios/Runner.xcodeproj"
@@ -72,6 +74,7 @@ workflows:
               -sdk iphoneos \
               -archivePath build/ios/archive/WhiteSailsRemote.xcarchive \
               archive \
+              DEVELOPMENT_TEAM=$TEAM_ID \
               CODE_SIGN_STYLE=Automatic
           fi
 
@@ -82,7 +85,7 @@ workflows:
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
-            <key>method</key><string>app-store</string>
+            <key>method</key><string>app-store-connect</string>
             <key>signingStyle</key><string>automatic</string>
             <key>stripSwiftSymbols</key><true/>
             <key>uploadBitcode</key><false/>
