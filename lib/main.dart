@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const PacpressApp());
@@ -147,15 +148,63 @@ class PacpressHomePage extends StatefulWidget {
   State<PacpressHomePage> createState() => _PacpressHomePageState();
 }
 
+
+class _LastGood {
+  final String host;
+  final int port;
+  const _LastGood(this.host, this.port);
+}
+
+class _LastGoodStore {
+  static const _kHost = 'last_ws_host';
+  static const _kPort = 'last_ws_port';
+
+  static Future<void> save(String host, int port) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kHost, host);
+    await prefs.setInt(_kPort, port);
+  }
+
+  static Future<_LastGood?> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final host = prefs.getString(_kHost);
+    final port = prefs.getInt(_kPort);
+    if (host == null || host.isEmpty) return null;
+    return _LastGood(host, port ?? 8080);
+  }
+
+  static Future<void> clear() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kHost);
+    await prefs.remove(_kPort);
+  }
+}
+
+  static Future<(String, int)?> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final host = prefs.getString(_kHost);
+    final port = prefs.getInt(_kPort);
+    if (host == null || host.isEmpty) return null;
+    return (host, port ?? 8080);
+  }
+
+  static Future<void> clear() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kHost);
+    await prefs.remove(_kPort);
+  }
+}
+
 class _PacpressHomePageState extends State<PacpressHomePage> {
   // ======= Connect target
   String wsHost = '192.168.132.180';
   int wsPort = 8080;
   String get wsUrl => 'ws://$wsHost:$wsPort';
 
-  // Controllers (prevents “typing lag” from recreating controllers each build)
-  late final TextEditingController _hostCtl;
-  late final TextEditingController _portCtl;
+  // ======= Discovery / UX
+  String connectionHint = '';
+  bool isSetupMode = false;
+  bool _savedLastGoodThisSession = false;
 
   // ======= Live device/meta
   bool deviceConnected = false; // raw WS link (not used for UI truth)
@@ -225,9 +274,7 @@ class _PacpressHomePageState extends State<PacpressHomePage> {
   @override
   void initState() {
     super.initState();
-    _hostCtl = TextEditingController(text: wsHost);
-    _portCtl = TextEditingController(text: wsPort.toString());
-    _connect();
+    _autoConnectSequence();
   }
 
   @override
@@ -237,8 +284,6 @@ class _PacpressHomePageState extends State<PacpressHomePage> {
     _sub?.cancel();
     _channel?.sink.close();
     _dsWriteTimeout?.cancel();
-    _hostCtl.dispose();
-    _portCtl.dispose();
     super.dispose();
   }
 
@@ -257,6 +302,81 @@ class _PacpressHomePageState extends State<PacpressHomePage> {
       ),
     );
   }
+
+
+  // ======= Auto-connect (no user-visible IP)
+  Future<void> _autoConnectSequence({bool forceFresh = false}) async {
+    if (forceFresh) {
+      await _LastGoodStore.clear();
+    }
+
+    setState(() {
+      connectionHint = 'Looking for controller…';
+      isSetupMode = false;
+    });
+
+    final attempts = <Map<String, Object>>[];
+
+    final last = await _LastGoodStore.load();
+    if (last != null) {
+      attempts.add({'host': last.host, 'port': last.port, 'label': 'Last controller'});
+    }
+
+    // Preferred hostname (works if mDNS/Bonjour hostname is available on the network)
+    attempts.add({'host': 'pacpress.local', 'port': 8080, 'label': 'pacpress.local'});
+
+    // If you still want a safety fallback for legacy installs, keep the previous default:
+    attempts.add({'host': wsHost, 'port': wsPort, 'label': 'Previous target'});
+
+    for (final a in attempts) {
+      wsHost = a['host'] as String;
+      wsPort = a['port'] as int;
+      _savedLastGoodThisSession = false;
+
+      if (!mounted) return;
+      setState(() => connectionHint = 'Connecting (${a['label']})…');
+
+      _connect();
+
+      final ok = await _waitForFreshMessage(const Duration(seconds: 2));
+      if (ok) {
+        if (!mounted) return;
+        setState(() => connectionHint = 'Connected');
+        return;
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      connectionHint =
+          'Not found. If this is first-time setup, tap “Set Up Controller”.';
+    });
+  }
+
+  Future<bool> _waitForFreshMessage(Duration timeout) async {
+    final start = DateTime.now();
+    while (DateTime.now().difference(start) < timeout) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      final last = _lastMessageAt;
+      if (last != null && last.isAfter(start)) return true;
+    }
+    return false;
+  }
+
+  Future<void> _connectToSetupAp() async {
+    _hapticLight();
+    setState(() {
+      isSetupMode = true;
+      connectionHint =
+          'Join PACPRESS-SETUP in iOS Settings → Wi‑Fi, then return here.';
+    });
+
+    wsHost = '192.168.4.1';
+    wsPort = 8080;
+    _savedLastGoodThisSession = false;
+    _connect();
+  }
+
 
   void _scheduleUi() {
     _uiDebounce?.cancel();
@@ -330,6 +450,10 @@ class _PacpressHomePageState extends State<PacpressHomePage> {
           (message) {
             deviceConnected = true;
             _lastMessageAt = DateTime.now();
+            if (!_savedLastGoodThisSession) {
+              _savedLastGoodThisSession = true;
+              _LastGoodStore.save(wsHost, wsPort);
+            }
 
             Map<String, dynamic>? data;
             try {
@@ -901,78 +1025,62 @@ class _PacpressHomePageState extends State<PacpressHomePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Connect Target',
+                const Text('Controller',
                     style:
                         TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 10),
+
+                // Status (no IP shown)
                 Row(
                   children: [
                     Expanded(
-                      child: TextField(
-                        controller: _hostCtl,
-                        decoration: const InputDecoration(
-                          labelText: 'ESP32 IP',
-                          hintText: '192.168.x.x',
-                          border: OutlineInputBorder(),
+                      child: Text(
+                        deviceConnected ? 'Online' : 'Offline',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: deviceConnected ? Colors.green : Colors.red,
                         ),
-                        onChanged: (v) => wsHost = v.trim(),
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    SizedBox(
-                      width: 110,
-                      child: TextField(
-                        controller: _portCtl,
-                        decoration: const InputDecoration(
-                          labelText: 'Port',
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.number,
-                        onChanged: (v) =>
-                            wsPort = int.tryParse(v.trim()) ?? wsPort,
+                    if (connectionHint.isNotEmpty)
+                      Text(
+                        connectionHint,
+                        style: const TextStyle(fontSize: 12),
+                        textAlign: TextAlign.right,
                       ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
+
                 Row(
                   children: [
                     Expanded(
                       child: FilledButton(
-                        onPressed: () {
-                          _hapticLight();
-                          _hostCtl.text = wsHost;
-                          _portCtl.text = wsPort.toString();
-                          _connect();
-                        },
-                        child: Text('Connect to $wsUrl'),
+                        onPressed: () => _autoConnectSequence(forceFresh: false),
+                        child: const Text('Connect'),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 10),
+
                 Wrap(
                   spacing: 10,
                   runSpacing: 10,
                   children: [
                     OutlinedButton.icon(
-                      onPressed: () {
-                        _hapticLight();
-                        wsHost = '192.168.4.1';
-                        wsPort = 8080;
-                        _hostCtl.text = wsHost;
-                        _portCtl.text = wsPort.toString();
-                        _connect();
-                        _toast('Switched to AP default (192.168.4.1)');
-                      },
-                      icon: const Icon(Icons.router),
-                      label: const Text('AP Default'),
+                      onPressed: _connectToSetupAp,
+                      icon: const Icon(Icons.settings),
+                      label: const Text('Set Up Controller'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _autoConnectSequence(forceFresh: true),
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Re-scan'),
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
         ],
       ),
     );
