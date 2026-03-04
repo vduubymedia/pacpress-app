@@ -21,11 +21,12 @@ workflows:
       - name: Flutter pub get
         script: flutter pub get
 
-      - name: Flutter build (no codesign)
+      - name: Flutter build (auto build number)
         script: |
           flutter clean
           flutter pub get
-          flutter build ios --release --no-codesign
+          echo "Using build number: $CM_BUILD_NUMBER"
+          flutter build ios --release --no-codesign --build-number=$CM_BUILD_NUMBER
 
       - name: Install CocoaPods
         script: |
@@ -79,9 +80,6 @@ workflows:
 
             echo "application-identifier:"
             /usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' /tmp/profile.plist || true
-
-            echo "get-task-allow:"
-            /usr/libexec/PlistBuddy -c 'Print :Entitlements:get-task-allow' /tmp/profile.plist || true
           done
 
       - name: Export IPA
