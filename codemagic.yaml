@@ -34,7 +34,7 @@ workflows:
           pod install
           cd ..
 
-          - name: Apply signing profiles (Runner project)
+      - name: Apply signing profiles (Runner project)
         script: |
           xcode-project use-profiles --project "ios/Runner.xcodeproj"
 
@@ -55,7 +55,7 @@ workflows:
           ls -la "$HOME/Library/MobileDevice/Provisioning Profiles" || true
           echo "== Code signing identities =="
           security find-identity -p codesigning -v || true
-          
+
       - name: Export IPA
         script: |
           xcodebuild -exportArchive \
