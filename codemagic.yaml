@@ -34,9 +34,9 @@ workflows:
           pod install
           cd ..
 
-      - name: Apply signing profiles (workspace)
+          - name: Apply signing profiles (Runner project)
         script: |
-          xcode-project use-profiles --workspace "ios/Runner.xcworkspace"
+          xcode-project use-profiles --project "ios/Runner.xcodeproj"
 
       - name: Archive (xcodebuild workspace)
         script: |
