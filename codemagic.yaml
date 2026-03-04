@@ -25,8 +25,9 @@ workflows:
         script: |
           flutter clean
           flutter pub get
-          echo "Using build number: $CM_BUILD_NUMBER"
-          flutter build ios --release --no-codesign --build-number=$CM_BUILD_NUMBER
+          BUILD_NUM="${CM_BUILD_ID:-$CM_BUILD_NUMBER}"
+          echo "Using build number: $BUILD_NUM"
+          flutter build ios --release --no-codesign --build-number=$BUILD_NUM
 
       - name: Install CocoaPods
         script: |
@@ -35,11 +36,11 @@ workflows:
           pod install
           cd ..
 
-      - name: Apply signing profiles (Runner project)
+      - name: Apply signing profiles
         script: |
           xcode-project use-profiles --project "ios/Runner.xcodeproj"
 
-      - name: Archive (xcodebuild workspace)
+      - name: Archive app
         script: |
           xcodebuild \
             -workspace "ios/Runner.xcworkspace" \
@@ -50,37 +51,12 @@ workflows:
             archive \
             COMPILER_INDEX_STORE_ENABLE=NO
 
-      - name: Debug provisioning profiles
+      - name: Verify build version
         script: |
-          echo "== Profiles directory =="
-          ls -la "$HOME/Library/MobileDevice/Provisioning Profiles" || true
-          echo "== Code signing identities =="
-          security find-identity -p codesigning -v || true
-
-      - name: Inspect installed provisioning profiles
-        script: |
-          set -e
-          DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
-          echo "== Inspecting profiles in: $DIR =="
-          ls -la "$DIR" || true
-
-          for f in "$DIR"/*.mobileprovision; do
-            echo "------------------------------"
-            echo "FILE: $f"
-            /usr/bin/security cms -D -i "$f" > /tmp/profile.plist
-
-            echo "Name:"
-            /usr/libexec/PlistBuddy -c 'Print :Name' /tmp/profile.plist || true
-
-            echo "UUID:"
-            /usr/libexec/PlistBuddy -c 'Print :UUID' /tmp/profile.plist || true
-
-            echo "TeamIdentifier:"
-            /usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' /tmp/profile.plist || true
-
-            echo "application-identifier:"
-            /usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' /tmp/profile.plist || true
-          done
+          echo "CFBundleShortVersionString:"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$CM_BUILD_DIR/build/ios/Runner.xcarchive/Products/Applications/Runner.app/Info.plist" || true
+          echo "CFBundleVersion:"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$CM_BUILD_DIR/build/ios/Runner.xcarchive/Products/Applications/Runner.app/Info.plist" || true
 
       - name: Export IPA
         script: |
@@ -90,7 +66,7 @@ workflows:
             -exportOptionsPlist "$CM_BUILD_DIR/ios/export_options.plist"
 
     artifacts:
-      - "build/ios/ipa/*.ipa"
+      - build/ios/ipa/*.ipa
 
     publishing:
       app_store_connect:
