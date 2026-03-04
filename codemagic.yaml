@@ -56,14 +56,33 @@ workflows:
           echo "== Code signing identities =="
           security find-identity -p codesigning -v || true
 
-      - name: Debug installed provisioning profiles (pre-export)
+      - name: Inspect installed provisioning profiles
         script: |
-          echo "== Find profiles matching bundle id =="
-          for f in "$HOME/Library/MobileDevice/Provisioning Profiles"/*.mobileprovision; do
-            echo "---- $f ----"
-            /usr/bin/security cms -D -i "$f" | /usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' /dev/stdin 2>/dev/null || true
-            /usr/bin/security cms -D -i "$f" | /usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' /dev/stdin 2>/dev/null || true
-          done || true
+          set -e
+          DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          echo "== Inspecting profiles in: $DIR =="
+          ls -la "$DIR" || true
+
+          for f in "$DIR"/*.mobileprovision; do
+            echo "------------------------------"
+            echo "FILE: $f"
+            /usr/bin/security cms -D -i "$f" > /tmp/profile.plist
+
+            echo "Name:"
+            /usr/libexec/PlistBuddy -c 'Print :Name' /tmp/profile.plist || true
+
+            echo "UUID:"
+            /usr/libexec/PlistBuddy -c 'Print :UUID' /tmp/profile.plist || true
+
+            echo "TeamIdentifier:"
+            /usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' /tmp/profile.plist || true
+
+            echo "application-identifier:"
+            /usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' /tmp/profile.plist || true
+
+            echo "get-task-allow:"
+            /usr/libexec/PlistBuddy -c 'Print :Entitlements:get-task-allow' /tmp/profile.plist || true
+          done
 
       - name: Export IPA
         script: |
