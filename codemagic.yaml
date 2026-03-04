@@ -13,7 +13,7 @@ workflows:
 
       ios_signing:
         provisioning_profiles:
-          - WhiteSails Remote App Store
+          - WhiteSails Remote app store
         certificates:
           - Apple Distribution
 
