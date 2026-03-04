@@ -6,13 +6,7 @@
   <string>app-store-connect</string>
 
   <key>signingStyle</key>
-  <string>manual</string>
-
-  <key>provisioningProfiles</key>
-  <dict>
-    <key>com.whitesails.remote</key>
-    <string>WhiteSails Remote app store</string>
-  </dict>
+  <string>automatic</string>
 
   <key>stripSwiftSymbols</key>
   <true/>
