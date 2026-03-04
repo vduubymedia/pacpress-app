@@ -49,6 +49,13 @@ workflows:
             archive \
             COMPILER_INDEX_STORE_ENABLE=NO
 
+      - name: Debug provisioning profiles
+        script: |
+          echo "== Profiles directory =="
+          ls -la "$HOME/Library/MobileDevice/Provisioning Profiles" || true
+          echo "== Code signing identities =="
+          security find-identity -p codesigning -v || true
+          
       - name: Export IPA
         script: |
           xcodebuild -exportArchive \
