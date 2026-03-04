@@ -6,11 +6,20 @@
   <string>app-store-connect</string>
 
   <key>signingStyle</key>
-  <string>automatic</string>
+  <string>manual</string>
 
-  <key>stripSwiftSymbols</key>
-  <true/>
+  <key>teamID</key>
+  <string>L52QSD32SX</string>
+
+  <key>provisioningProfiles</key>
+  <dict>
+    <key>com.whitesails.remote</key>
+    <string>WhiteSails Remote App Store</string>
+  </dict>
+
   <key>compileBitcode</key>
   <false/>
+  <key>stripSwiftSymbols</key>
+  <true/>
 </dict>
 </plist>
