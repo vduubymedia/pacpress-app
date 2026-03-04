@@ -21,30 +21,43 @@ workflows:
       - name: Flutter pub get
         script: flutter pub get
 
-      - name: Generate iOS build files (safe)
+      - name: Flutter build (no codesign)
         script: |
           flutter clean
           flutter pub get
           flutter build ios --release --no-codesign
 
-      - name: Install CocoaPods (generate workspace)
+      - name: Install CocoaPods
         script: |
           cd ios
           pod repo update
           pod install
           cd ..
 
-      - name: Set up code signing (target Runner project)
-        script: xcode-project use-profiles --project ios/Runner.xcodeproj
-
-      - name: Build IPA (Codemagic build-ipa, no plist)
+      - name: Apply signing profiles (workspace)
         script: |
-          xcode-project build-ipa \
-            --project ios/Runner.xcodeproj \
-            --scheme Runner
+          xcode-project use-profiles --workspace "ios/Runner.xcworkspace"
+
+      - name: Archive (xcodebuild workspace)
+        script: |
+          xcodebuild \
+            -workspace "ios/Runner.xcworkspace" \
+            -scheme "Runner" \
+            -configuration "Release" \
+            -sdk "iphoneos" \
+            -archivePath "$CM_BUILD_DIR/build/ios/Runner.xcarchive" \
+            archive \
+            COMPILER_INDEX_STORE_ENABLE=NO
+
+      - name: Export IPA
+        script: |
+          xcodebuild -exportArchive \
+            -archivePath "$CM_BUILD_DIR/build/ios/Runner.xcarchive" \
+            -exportPath "$CM_BUILD_DIR/build/ios/ipa" \
+            -exportOptionsPlist "$CM_BUILD_DIR/ios/export_options.plist"
 
     artifacts:
-      - "**/*.ipa"
+      - "build/ios/ipa/*.ipa"
 
     publishing:
       app_store_connect:
