@@ -204,7 +204,6 @@ class _PacpressHomePageState extends State<PacpressHomePage> {
     _connect();
   }
 
-
   // Controllers (prevents “typing lag” from recreating controllers each build)
   late final TextEditingController _hostCtl;
   late final TextEditingController _portCtl;
@@ -552,15 +551,33 @@ class _PacpressHomePageState extends State<PacpressHomePage> {
     } catch (_) {}
   }
 
+  // ✅ NEW: small "momentary-style insurance" for start/stop on flaky WiFi
+  // This does NOT change the protocol or any working logic.
+  void _sendCmdMomentary(String cmd, {int repeats = 2, int gapMs = 120}) {
+    _send({"cmd": cmd});
+    if (repeats <= 1) return;
+    Timer(Duration(milliseconds: gapMs), () {
+      _send({"cmd": cmd});
+    });
+  }
+
   void _start() {
     _hapticLight();
-    _send({"cmd": "start"});
+
+    // Optional safety: don’t spam Start if cycle already on
+    if (cycleOn) {
+      _toast('Cycle already ON');
+      return;
+    }
+
+    _sendCmdMomentary("start");
     _log("Start pressed");
   }
 
   void _stop() {
     _hapticLight();
-    _send({"cmd": "stop"});
+    // Stop is always allowed; it’s the safe action.
+    _sendCmdMomentary("stop");
     _log("Stop pressed");
   }
 
@@ -649,6 +666,7 @@ class _PacpressHomePageState extends State<PacpressHomePage> {
 
   // ===================== HOME =====================
   Widget _home() {
+    // max psi is 100 (per your spec)
     final ratio = (feedPsi / 100.0).clamp(0.0, 1.0);
 
     return SafeArea(
